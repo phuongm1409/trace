@@ -1,0 +1,74 @@
+[
+  {
+    "motion": "drive",
+    "exit": "right",
+    "time": 2,
+    "word": "car"
+  },
+  {
+    "motion": "fly",
+    "exit": "up",
+    "time": 2,
+    "word": "bird"
+  },
+  {
+    "motion": "bounce",
+    "exit": "right",
+    "time": 2,
+    "word": "ball"
+  },
+  {
+    "motion": "fly",
+    "exit": "up",
+    "time": 2,
+    "word": "kite"
+  },
+  {
+    "motion": "wiggle",
+    "exit": "fade",
+    "time": 2,
+    "word": "doll"
+  },
+  {
+    "motion": "drive",
+    "exit": "right",
+    "time": 2,
+    "word": "train"
+  },
+  {
+    "motion": "swim",
+    "exit": "right",
+    "time": 2,
+    "word": "boat"
+  },
+  {
+    "motion": "spin",
+    "exit": "zoom",
+    "time": 2,
+    "word": "star"
+  },
+  {
+    "motion": "wiggle",
+    "exit": "fade",
+    "time": 2,
+    "word": "moon"
+  },
+  {
+    "motion": "bounce",
+    "exit": "right",
+    "time": 2,
+    "word": "cat"
+  },
+  {
+    "motion": "swim",
+    "exit": "left",
+    "time": 2,
+    "word": "fish"
+  },
+  {
+    "motion": "wiggle",
+    "exit": "spin",
+    "time": 2,
+    "word": "robot"
+  }
+]
