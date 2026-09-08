@@ -1,65 +1,28 @@
 [
   {
+    "word": "xe hơi",
     "exit": "right",
-    "word": "car",
-    "motion": "drive",
-    "time": 2,
     "image": null
   },
   {
+    "word": "chim",
     "exit": "up",
-    "motion": "fly",
-    "time": 2,
-    "word": "bird"
+    "image": null
   },
   {
+    "word": "bóng",
     "exit": "shrink",
-    "motion": "bounce",
-    "time": 2,
-    "word": "ball",
+    "image": null
+  },
+  {
+    "word": "mèo",
+    "exit": "down",
     "image": null
   },
   {
     "exit": "right",
-    "motion": "drive",
-    "time": 2,
-    "word": "train"
-  },
-  {
-    "exit": "right",
-    "motion": "swim",
-    "time": 2,
-    "word": "ship",
-    "image": null
-  },
-  {
-    "exit": "zoom",
-    "motion": "spin",
-    "time": 2,
-    "word": "star"
-  },
-  {
-    "exit": "fade",
-    "motion": "wiggle",
-    "time": 2,
-    "word": "moon"
-  },
-  {
-    "exit": "right",
-    "motion": "bounce",
-    "time": 2,
-    "word": "cat"
-  },
-  {
     "word": "cá",
-    "exit": "right",
     "image": null
-  },
-  {
-    "exit": "spin",
-    "motion": "wiggle",
-    "time": 2,
-    "word": "robot"
   },
   {
     "exit": "fade",
