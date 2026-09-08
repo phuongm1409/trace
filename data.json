@@ -19,28 +19,17 @@
     "image": null
   },
   {
-    "motion": "fly",
-    "exit": "up",
-    "time": 2,
-    "word": "kite"
-  },
-  {
-    "motion": "wiggle",
-    "exit": "fade",
-    "time": 2,
-    "word": "doll"
-  },
-  {
     "motion": "drive",
     "exit": "right",
     "time": 2,
     "word": "train"
   },
   {
+    "word": "ship",
     "motion": "swim",
-    "exit": "right",
     "time": 2,
-    "word": "boat"
+    "exit": "right",
+    "image": null
   },
   {
     "motion": "spin",
