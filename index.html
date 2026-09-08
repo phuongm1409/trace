@@ -215,5 +215,45 @@ complete=function(){window.speechSynthesis?.cancel();document.body.classList.add
 const showWithoutTintBase=show;
 show=function(index){window.speechSynthesis?.cancel();document.body.classList.remove('reward-tint');showWithoutTintBase(index)};
 window.speechSynthesis?.cancel();
-</script></body></html>
-
+</script>
+<style>
+.fullscreen-btn{width:42px;height:38px;padding:0;border:0;border-radius:14px;background:#d9d0f3;color:#554a78;box-shadow:0 3px 0 #aaa0ce;font:900 23px/1 system-ui,sans-serif;cursor:pointer;touch-action:manipulation}
+.fullscreen-btn:active{transform:translateY(2px);box-shadow:0 1px 0 #aaa0ce}
+body.ipad-fullscreen{position:fixed;inset:0;width:100%;height:100%;overflow:auto;background:#d9f4ff}
+body.ipad-fullscreen .app{min-height:100dvh}
+</style>
+<script>
+const fullscreenButton=document.createElement('button');
+fullscreenButton.id='fullscreenButton';
+fullscreenButton.className='btn fullscreen-btn';
+fullscreenButton.type='button';
+fullscreenButton.textContent='⛶';
+fullscreenButton.title='View full screen';
+fullscreenButton.setAttribute('aria-label','Enter full screen');
+document.querySelector('.top').append(fullscreenButton);
+const fullscreenElement=()=>document.fullscreenElement||document.webkitFullscreenElement;
+function updateFullscreenButton(){
+  const active=Boolean(fullscreenElement())||document.body.classList.contains('ipad-fullscreen');
+  fullscreenButton.textContent=active?'×':'⛶';
+  fullscreenButton.title=active?'Exit full screen':'View full screen';
+  fullscreenButton.setAttribute('aria-label',active?'Exit full screen':'Enter full screen');
+}
+fullscreenButton.onclick=async()=>{
+  try{
+    if(fullscreenElement()){
+      const exit=document.exitFullscreen||document.webkitExitFullscreen;
+      if(exit)await exit.call(document);
+    }else{
+      const enter=document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen;
+      if(enter)await enter.call(document.documentElement);
+      else document.body.classList.toggle('ipad-fullscreen');
+    }
+  }catch(error){
+    document.body.classList.toggle('ipad-fullscreen');
+  }
+  updateFullscreenButton();
+};
+document.addEventListener('fullscreenchange',updateFullscreenButton);
+document.addEventListener('webkitfullscreenchange',updateFullscreenButton);
+</script>
+</body></html>
