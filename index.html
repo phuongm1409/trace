@@ -252,8 +252,96 @@ fullscreenButton.onclick=async()=>{
     document.body.classList.toggle('ipad-fullscreen');
   }
   updateFullscreenButton();
+  if(typeof resizeCanvasPreservingInk==='function')resizeCanvasPreservingInk();
 };
 document.addEventListener('fullscreenchange',updateFullscreenButton);
 document.addEventListener('webkitfullscreenchange',updateFullscreenButton);
+</script>
+<style>
+/* iPad classroom mode: fit the board inside one screen and block page movement. */
+html,body{width:100%;height:100%;overflow:hidden;overscroll-behavior:none}
+body{position:fixed;inset:0;touch-action:none}
+.app{width:min(90vw,1512px);height:100dvh;max-height:100dvh;padding:12px 16px 24px;overflow:hidden}
+.top{margin-bottom:10px}
+.board{min-height:0;height:calc(100dvh - 78px);padding:20px}
+.paper{height:clamp(330px,52dvh,585px)}
+body.ipad-fullscreen{overflow:hidden}
+body.ipad-fullscreen .app{height:100dvh;overflow:hidden}
+dialog,.manage,.list,input,select,button{touch-action:manipulation}
+@media(max-width:760px){
+  .app{width:94vw;padding:10px 6px 18px}
+  .board{height:calc(100dvh - 72px);padding:14px 10px}
+  .paper{height:calc(100dvh - 315px);min-height:300px}
+}
+</style>
+<script>
+/* Preserve handwriting when orientation or fullscreen changes resize the canvas. */
+let canvasResizeTimer=0;
+function resizeCanvasPreservingInk(){
+  clearTimeout(canvasResizeTimer);
+  canvasResizeTimer=setTimeout(()=>{
+    const oldWidth=canvas.width,oldHeight=canvas.height;
+    const oldCssWidth=parseFloat(canvas.style.width)||oldWidth/(window.devicePixelRatio||1);
+    const oldCssHeight=parseFloat(canvas.style.height)||oldHeight/(window.devicePixelRatio||1);
+    const oldCovered=[...kidCoveredCells];
+    const saved=document.createElement('canvas');
+    saved.width=oldWidth;saved.height=oldHeight;
+    saved.getContext('2d').drawImage(canvas,0,0);
+    const r=paper.getBoundingClientRect(),d=window.devicePixelRatio||1;
+    const newWidth=Math.max(1,Math.round(r.width*d));
+    const newHeight=Math.max(1,Math.round(r.height*d));
+    if(newWidth===oldWidth&&newHeight===oldHeight)return;
+    canvas.width=newWidth;canvas.height=newHeight;
+    canvas.style.width=r.width+'px';canvas.style.height=r.height+'px';
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.drawImage(saved,0,0,oldWidth,oldHeight,0,0,newWidth,newHeight);
+    ctx.setTransform(d,0,0,d,0,0);
+    ctx.lineCap='round';ctx.lineJoin='round';
+    buildMask();
+    kidCoveredCells.clear();
+    const scaleX=r.width/oldCssWidth,scaleY=r.height/oldCssHeight;
+    for(const key of oldCovered){
+      const [cellX,cellY]=key.split(',').map(Number);
+      const nextKey=`${Math.floor(cellX*scaleX)},${Math.floor(cellY*scaleY)}`;
+      if(maskCells.has(nextKey))kidCoveredCells.add(nextKey);
+    }
+  },120);
+}
+window.onresize=resizeCanvasPreservingInk;
+document.addEventListener('fullscreenchange',resizeCanvasPreservingInk);
+document.addEventListener('webkitfullscreenchange',resizeCanvasPreservingInk);
+window.addEventListener('orientationchange',resizeCanvasPreservingInk);
+
+/* Only the first finger that touches the board may draw. */
+let activeDrawingPointer=null;
+canvas.onpointerdown=event=>{
+  if(activeDrawingPointer!==null||done)return;
+  activeDrawingPointer=event.pointerId;
+  event.preventDefault();
+  start(event);
+  if(drawing)playTraceSound('write');
+};
+canvas.onpointermove=event=>{
+  if(event.pointerId!==activeDrawingPointer)return;
+  event.preventDefault();
+  move(event);
+};
+function finishSinglePointer(event){
+  if(event.pointerId!==activeDrawingPointer)return;
+  event.preventDefault();
+  end(event);
+  stopWritingSound();
+  activeDrawingPointer=null;
+}
+canvas.onpointerup=finishSinglePointer;
+canvas.onpointercancel=finishSinglePointer;
+canvas.onlostpointercapture=event=>{
+  if(event.pointerId===activeDrawingPointer){
+    end(event);stopWritingSound();activeDrawingPointer=null;
+  }
+};
+document.addEventListener('touchmove',event=>{
+  if(event.target===canvas||paper.contains(event.target))event.preventDefault();
+},{passive:false});
 </script>
 </body></html>
