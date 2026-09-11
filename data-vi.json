@@ -1,22 +1,22 @@
 [
   {
-    "word": "xe hơi",
     "exit": "right",
+    "word": "xe hơi",
     "image": null
   },
   {
-    "word": "chim",
     "exit": "up",
+    "word": "chim",
     "image": null
   },
   {
-    "word": "bóng",
     "exit": "shrink",
+    "word": "bóng",
     "image": null
   },
   {
-    "word": "mèo",
     "exit": "down",
+    "word": "mèo",
     "image": null
   },
   {
@@ -36,6 +36,11 @@
     "motion": "bounce",
     "time": 2,
     "word": "siu",
+    "image": null
+  },
+  {
+    "word": "dâu tây",
+    "exit": "down",
     "image": null
   }
 ]
