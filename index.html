@@ -10,10 +10,11 @@
 <div class="reward" id="reward"><img id="rewardImg" alt=""><span class="fallback" id="rewardFallback"></span></div>
 <dialog id="manager"><div class="manage"><button class="btn close" id="closeBtn">Done</button><h2>My word box</h2><p class="note">Every picture enters from the top-left corner to the center. Choose its emphasis, duration, and exit. Without an upload, the app checks <b>images/word.png</b>.</p><form id="wordForm" class="form"><label>Word<input id="newWord" required maxlength="16"></label><label>Picture<input id="newImage" type="file" accept="image/png,image/jpeg,image/webp"></label><label>Emphasis<select id="newMotion"><option value="bounce">Bounce</option><option value="fly">Fly</option><option value="drive">Drive</option><option value="swim">Swim</option><option value="spin">Spin</option><option value="wiggle">Wiggle</option></select></label><label>Emphasis time (seconds)<input id="newTime" type="number" min=".5" max="8" step=".5" value="2"></label><label class="full">Exit<select id="newExit"><option value="right">Move right</option><option value="left">Move left</option><option value="up">Move up</option><option value="down">Move down</option><option value="fade">Fade out</option><option value="shrink">Shrink away</option><option value="zoom">Zoom out</option><option value="spin">Spin out</option><option value="drop">Drop down</option></select></label><button class="btn add" id="submitWord">＋ Add word</button><button class="btn cancel-edit" id="cancelEdit" type="button" hidden>Cancel edit</button></form><div class="list" id="wordList"></div></div></dialog>
 <script>
+const escapeWord=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const defaults=[['car','drive','right',2],['bird','fly','up',2],['ball','bounce','right',2],['kite','fly','up',2],['doll','wiggle','fade',2],['train','drive','right',2],['boat','swim','right',2],['star','spin','zoom',2],['moon','wiggle','fade',2],['cat','bounce','right',2],['fish','swim','left',2],['robot','wiggle','spin',2]].map(([word,motion,exit,time])=>({word,motion,exit,time}));const $=s=>document.querySelector(s),stored=JSON.parse(localStorage.getItem('traceWordLibrary')||'null'),legacy=JSON.parse(localStorage.getItem('traceWords')||'[]');let words=(stored||[...defaults,...legacy]).map(w=>({motion:'wiggle',exit:'right',time:2,...w})),current=0,editIndex=-1,mode='pen',color='#587fd6',drawing=false,last=null,done=false,maskCells=new Set,maskColumns=new Set,coveredColumns=new Set;const canvas=$('#canvas'),ctx=canvas.getContext('2d'),paper=$('#paper'),reward=$('#reward'),maskCanvas=document.createElement('canvas'),maskCtx=maskCanvas.getContext('2d'),GRID=7,TOLERANCE=28,REQUIRED_WIDTH=.8;const saveWords=()=>localStorage.setItem('traceWordLibrary',JSON.stringify(words));
 function setPicture(w){const src=w.image||`images/${encodeURIComponent(w.word.toLowerCase())}.png`,a=$('#previewImg'),b=$('#rewardImg'),af=$('#previewFallback'),bf=$('#rewardFallback'),fail=()=>{a.hidden=b.hidden=true;af.hidden=bf.hidden=false};a.hidden=b.hidden=false;af.hidden=bf.hidden=true;a.onerror=b.onerror=fail;a.src=b.src=src;a.alt=b.alt=w.word;af.textContent=bf.textContent=w.word[0]||'?'}function buildMask(){const r=paper.getBoundingClientRect(),w=Math.round(r.width),h=Math.round(r.height);maskCanvas.width=w;maskCanvas.height=h;maskCtx.clearRect(0,0,w,h);maskCtx.save();maskCtx.setTransform(w/1000,0,0,h/390,0,0);maskCtx.font='500 190px Playwrite';maskCtx.textAlign='center';maskCtx.fillStyle='#000';maskCtx.fillText(words[current]?.word||'',500,260);maskCtx.restore();const data=maskCtx.getImageData(0,0,w,h).data;maskCells.clear();maskColumns.clear();coveredColumns.clear();for(let y=0;y<h;y+=GRID)for(let x=0;x<w;x+=GRID)if(data[(y*w+x)*4+3]>50){const col=Math.floor(x/GRID);maskCells.add(`${col},${Math.floor(y/GRID)}`);maskColumns.add(col)}}function resize(){const r=paper.getBoundingClientRect(),d=devicePixelRatio||1;canvas.width=r.width*d;canvas.height=r.height*d;canvas.style.width=r.width+'px';canvas.style.height=r.height+'px';ctx.setTransform(d,0,0,d,0,0);ctx.lineCap='round';ctx.lineJoin='round';buildMask()}function clearInk(){ctx.clearRect(0,0,canvas.width,canvas.height);coveredColumns.clear();$('#bar').style.width='0'}function show(i){current=(i+words.length)%words.length;const w=words[current];done=false;document.body.classList.remove('locked');reward.className='reward';$('#message').textContent='';$('#guideText').textContent=$('#wordLabel').textContent=w.word;setPicture(w);buildMask();clearInk();renderList()}function point(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}function start(e){if(done)return;drawing=true;last=point(e);canvas.setPointerCapture?.(e.pointerId)}function coverSegment(a,b){const dist=Math.hypot(b.x-a.x,b.y-a.y),steps=Math.max(1,Math.ceil(dist/4));for(let i=0;i<=steps;i++){const x=a.x+(b.x-a.x)*i/steps,y=a.y+(b.y-a.y)*i/steps;for(let oy=-TOLERANCE;oy<=TOLERANCE;oy+=GRID)for(let ox=-TOLERANCE;ox<=TOLERANCE;ox+=GRID){const col=Math.floor((x+ox)/GRID),key=`${col},${Math.floor((y+oy)/GRID)}`;if(maskCells.has(key))coveredColumns.add(col)}}const ratio=maskColumns.size?coveredColumns.size/maskColumns.size:0;$('#bar').style.width=Math.min(100,ratio/REQUIRED_WIDTH*100)+'%';if(ratio>=REQUIRED_WIDTH&&!done)complete()}function move(e){if(!drawing||done)return;e.preventDefault();const p=point(e);ctx.globalCompositeOperation=mode==='eraser'?'destination-out':'source-over';ctx.strokeStyle=color;ctx.lineWidth=mode==='eraser'?44:18;ctx.beginPath();ctx.moveTo(last.x,last.y);ctx.lineTo(p.x,p.y);ctx.stroke();if(mode==='pen')coverSegment(last,p);last=p}function end(){drawing=false}
 function complete(){done=true;drawing=false;document.body.classList.add('locked');const w=words[current],r=$('#preview').getBoundingClientRect(),emphasisMs=Math.max(500,Math.min(8000,Number(w.time||2)*1000));reward.style.setProperty('--sx',r.left+r.width/2+'px');reward.style.setProperty('--sy',r.top+r.height/2+'px');reward.className='reward show';$('#message').textContent='Great tracing! ⭐';$('#bar').style.width='100%';setTimeout(()=>reward.className=`reward show arrived motion-${w.motion||'wiggle'}`,1050);setTimeout(()=>reward.className=`reward exiting exit-${w.exit||'right'}`,1050+emphasisMs);setTimeout(()=>show(current+1),2050+emphasisMs)}
-canvas.onpointerdown=start;canvas.onpointermove=move;canvas.onpointerup=canvas.onpointercancel=end;window.onresize=()=>{resize();show(current)};function setMode(m){mode=m;$('#pen').classList.toggle('active',m==='pen');$('#eraser').classList.toggle('active',m==='eraser')}$('#pen').onclick=()=>setMode('pen');$('#eraser').onclick=()=>setMode('eraser');document.querySelectorAll('.color').forEach(b=>b.onclick=()=>{color=b.dataset.color;setMode('pen')});$('#clear').onclick=clearInk;$('#next').onclick=()=>show(current+1);const manager=$('#manager');$('#manageBtn').onclick=()=>manager.showModal();$('#closeBtn').onclick=()=>manager.close();function resetForm(){$('#wordForm').reset();$('#newTime').value=2;editIndex=-1;$('#submitWord').textContent='＋ Add word';$('#cancelEdit').hidden=true}function renderList(){$('#wordList').innerHTML=words.map((w,i)=>`<div class="row"><div><b>${w.word}</b><div class="meta">glide → ${w.motion||'wiggle'} (${w.time||2}s) → ${w.exit||'right'}</div></div><div class="row-actions"><button class="edit" onclick="editWord(${i})">Edit</button><button class="remove" onclick="removeWord(${i})">Remove</button></div></div>`).join('')}window.editWord=i=>{const w=words[i];editIndex=i;$('#newWord').value=w.word;$('#newMotion').value=w.motion||'wiggle';$('#newTime').value=w.time||2;$('#newExit').value=w.exit||'right';$('#submitWord').textContent='Save changes';$('#cancelEdit').hidden=false;$('#newWord').focus()};window.removeWord=i=>{words.splice(i,1);saveWords();if(!words.length)words=[...defaults];show(Math.min(current,words.length-1));renderList()};$('#cancelEdit').onclick=resetForm;$('#wordForm').onsubmit=e=>{e.preventDefault();const f=$('#newImage').files[0],existing=editIndex>=0?words[editIndex]:null,finish=image=>{const item={word:$('#newWord').value.trim().toLowerCase(),motion:$('#newMotion').value,time:Number($('#newTime').value)||2,exit:$('#newExit').value,image:image??existing?.image??null};if(editIndex>=0)words[editIndex]=item;else words.push(item);saveWords();const target=editIndex>=0?editIndex:words.length-1;resetForm();show(target)};if(f){const r=new FileReader;r.onload=()=>finish(r.result);r.readAsDataURL(f)}else finish(null)};resize();show(Math.floor(Math.random()*words.length));
+canvas.onpointerdown=start;canvas.onpointermove=move;canvas.onpointerup=canvas.onpointercancel=end;window.onresize=()=>{resize();show(current)};function setMode(m){mode=m;$('#pen').classList.toggle('active',m==='pen');$('#eraser').classList.toggle('active',m==='eraser')}$('#pen').onclick=()=>setMode('pen');$('#eraser').onclick=()=>setMode('eraser');document.querySelectorAll('.color').forEach(b=>b.onclick=()=>{color=b.dataset.color;setMode('pen')});$('#clear').onclick=clearInk;$('#next').onclick=()=>show(current+1);const manager=$('#manager');$('#manageBtn').onclick=()=>manager.showModal();$('#closeBtn').onclick=()=>manager.close();function resetForm(){$('#wordForm').reset();$('#newTime').value=2;editIndex=-1;$('#submitWord').textContent='＋ Add word';$('#cancelEdit').hidden=true}function renderList(){$('#wordList').innerHTML=words.map((w,i)=>`<div class="row"><div><b>${escapeWord(w.word)}</b><div class="meta">glide → ${w.motion||'wiggle'} (${w.time||2}s) → ${w.exit||'right'}</div></div><div class="row-actions"><button class="edit" onclick="editWord(${i})">Edit</button><button class="remove" onclick="removeWord(${i})">Remove</button></div></div>`).join('')}window.editWord=i=>{const w=words[i];editIndex=i;$('#newWord').value=w.word;$('#newMotion').value=w.motion||'wiggle';$('#newTime').value=w.time||2;$('#newExit').value=w.exit||'right';$('#submitWord').textContent='Save changes';$('#cancelEdit').hidden=false;$('#newWord').focus()};window.removeWord=i=>{words.splice(i,1);saveWords();if(!words.length)words=[...defaults];show(Math.min(current,words.length-1));renderList()};$('#cancelEdit').onclick=resetForm;$('#wordForm').onsubmit=e=>{e.preventDefault();const f=$('#newImage').files[0],existing=editIndex>=0?words[editIndex]:null,finish=image=>{const item={word:$('#newWord').value.trim().toLowerCase(),motion:$('#newMotion').value,time:Number($('#newTime').value)||2,exit:$('#newExit').value,image:image??existing?.image??null};if(editIndex>=0)words[editIndex]=item;else words.push(item);saveWords();const target=editIndex>=0?editIndex:words.length-1;resetForm();show(target)};if(f){const r=new FileReader;r.onload=()=>finish(r.result);r.readAsDataURL(f)}else finish(null)};resize();show(Math.floor(Math.random()*words.length));
 document.fonts.ready.then(buildMask);
 </script>
 <script>
@@ -113,7 +114,7 @@ saveCard.onclick=async()=>{
 $('#newMotion').closest('label').hidden=true;
 $('#newTime').closest('label').hidden=true;
 $('.note').innerHTML='Every picture enters from the top-left corner, pauses in the center, and then uses its chosen exit. Without an upload, the app checks <b>images/word.png</b>.';
-renderList=function(){$('#wordList').innerHTML=words.map((w,i)=>`<div class="row"><div><b>${w.word}</b><div class="meta">glide → ${w.exit||'right'}</div></div><div class="row-actions"><button class="edit" onclick="editWord(${i})">Edit</button><button class="remove" onclick="removeWord(${i})">Remove</button></div></div>`).join('')};
+renderList=function(){$('#wordList').innerHTML=words.map((w,i)=>`<div class="row"><div><b>${escapeWord(w.word)}</b><div class="meta">glide → ${w.exit||'right'}</div></div><div class="row-actions"><button class="edit" onclick="editWord(${i})">Edit</button><button class="remove" onclick="removeWord(${i})">Remove</button></div></div>`).join('')};
 renderList();
 complete=function(){
   done=true;drawing=false;document.body.classList.add('locked');
@@ -126,36 +127,17 @@ complete=function(){
 };
 </script>
 <style>
-.github-sync{margin:14px 0 18px;padding:14px;border:2px solid #c7e6ed;border-radius:16px;background:#eefaff}.github-sync h3{margin:0 0 9px;font-size:17px}.github-sync-row{display:flex;gap:9px;flex-wrap:wrap}.github-sync input{min-width:240px;flex:1;padding:10px 12px;border:2px solid #cbbfe5;border-radius:11px}.github-sync .btn{padding:9px 13px}.github-status{min-height:20px;margin:8px 0 0;font-size:13px;color:#655a85}
+.drive-sync{margin:14px 0 18px;padding:14px;border:2px solid #c7e6ed;border-radius:16px;background:#eefaff}.drive-sync h3{margin:0 0 9px;font-size:17px}.drive-sync-row{display:flex;gap:9px;flex-wrap:wrap}.drive-sync input{min-width:240px;flex:1;padding:10px 12px;border:2px solid #cbbfe5;border-radius:11px}.drive-sync .btn{padding:9px 13px}.drive-status{min-height:20px;margin:8px 0 0;font-size:13px;color:#655a85}
 </style>
 <script>
-const syncBox=document.createElement('section');syncBox.className='github-sync';syncBox.innerHTML='<h3>GitHub data</h3><div class="github-sync-row"><input id="githubToken" type="password" autocomplete="off" placeholder="GitHub token (needed to save)" aria-label="GitHub token"><button class="btn" id="githubLoad" type="button">Load data</button><button class="btn add" id="githubSave" type="button">Save data</button></div><p class="github-status" id="githubStatus">phuongm1409/trace · data.json</p>';
+let activeRepoBranch='main', driveAccount=null;
+const syncBox=document.createElement('section');syncBox.className='drive-sync';
+syncBox.innerHTML='<h3>My Google Drive</h3><div class="drive-sync-row"><button class="btn" id="driveConnect" type="button">Sign in with Google</button><button class="btn" id="driveLoad" type="button" disabled>Load from Drive</button><button class="btn add" id="driveSave" type="button" disabled>Save to Drive</button><button class="btn" id="driveDisconnect" type="button" hidden>Sign out</button></div><p id="driveAccountLabel"></p><p class="drive-status" id="driveStatus" role="status" aria-live="polite">Connect to load your personal word boxes. Changes stay on this device until you save to Drive.</p>';
 $('.note').after(syncBox);
-const githubToken=$('#githubToken'),githubStatus=$('#githubStatus'),githubApi='https://api.github.com/repos/phuongm1409/trace/contents/data.json';
-githubToken.value=sessionStorage.getItem('traceGithubToken')||'';githubToken.oninput=()=>sessionStorage.setItem('traceGithubToken',githubToken.value.trim());
-const githubHeaders=()=>({'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28',...(githubToken.value.trim()?{'Authorization':`Bearer ${githubToken.value.trim()}`}:{})});
-const encodeData=value=>btoa(unescape(encodeURIComponent(JSON.stringify(value,null,2))));
-const decodeData=value=>JSON.parse(decodeURIComponent(escape(atob(value.replace(/\n/g,'')))));
-$('#githubLoad').onclick=async()=>{try{githubStatus.textContent='Loading…';const res=await fetch(githubApi+'?ref=main',{headers:githubHeaders()});if(!res.ok)throw new Error(res.status===404?'data.json was not found. Save once to create it.':`GitHub returned ${res.status}`);const file=await res.json(),loaded=decodeData(file.content);if(!Array.isArray(loaded)||!loaded.length)throw new Error('data.json does not contain a word list');words=loaded.map(w=>({exit:'right',...w}));saveWords();show(0);githubStatus.textContent=`Loaded ${words.length} words from GitHub ✓`}catch(error){githubStatus.textContent=error.message}};
-$('#githubSave').onclick=async()=>{try{if(!githubToken.value.trim())throw new Error('Enter a GitHub token to save');githubStatus.textContent='Saving…';const currentFile=await fetch(githubApi+'?ref=main',{headers:githubHeaders()}),existing=currentFile.ok?await currentFile.json():null;if(!currentFile.ok&&currentFile.status!==404)throw new Error(`GitHub returned ${currentFile.status}`);const body={message:'Update handwriting word data',content:encodeData(words),branch:'main',...(existing?.sha?{sha:existing.sha}:{})};const res=await fetch(githubApi,{method:'PUT',headers:{...githubHeaders(),'Content-Type':'application/json'},body:JSON.stringify(body)});if(!res.ok){const info=await res.json().catch(()=>({}));throw new Error(info.message||`GitHub returned ${res.status}`)}githubStatus.textContent=`Saved ${words.length} words to data.json ✓`}catch(error){githubStatus.textContent=error.message}};
-</script>
-<script>
-const imageFileName=(word,index)=>((word||`word-${index+1}`).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9_-]+/g,'-').replace(/^-|-$/g,'')||`word-${index+1}`)+'.png';
-const pngBase64=dataUrl=>new Promise((resolve,reject)=>{const img=new Image;img.onload=()=>{const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;c.getContext('2d').drawImage(img,0,0);resolve(c.toDataURL('image/png').split(',')[1])};img.onerror=()=>reject(new Error('An uploaded picture could not be prepared'));img.src=dataUrl});
-async function saveRepoFile(path,content,message){const api=`https://api.github.com/repos/phuongm1409/trace/contents/${path.split('/').map(encodeURIComponent).join('/')}`,currentFile=await fetch(api+'?ref=main',{headers:githubHeaders()}),existing=currentFile.ok?await currentFile.json():null;if(!currentFile.ok&&currentFile.status!==404)throw new Error(`GitHub returned ${currentFile.status} for ${path}`);const res=await fetch(api,{method:'PUT',headers:{...githubHeaders(),'Content-Type':'application/json'},body:JSON.stringify({message,content,branch:'main',...(existing?.sha?{sha:existing.sha}:{})})});if(!res.ok){const info=await res.json().catch(()=>({}));throw new Error(info.message||`Could not save ${path}`)}}
-$('#githubSave').onclick=async()=>{try{if(!githubToken.value.trim())throw new Error('Enter a GitHub token to save');const compact=[];for(let i=0;i<words.length;i++){const item={...words[i]};if(typeof item.image==='string'&&item.image.startsWith('data:image/')){githubStatus.textContent=`Uploading picture ${i+1} of ${words.length}…`;const name=imageFileName(item.word,i),path=`images/${name}`;await saveRepoFile(path,await pngBase64(item.image),`Update picture for ${item.word}`);item.image=`https://raw.githubusercontent.com/phuongm1409/trace/main/${path}?v=${Date.now()}`}compact.push(item)}githubStatus.textContent='Saving word data…';const currentFile=await fetch(githubApi+'?ref=main',{headers:githubHeaders()}),existing=currentFile.ok?await currentFile.json():null;if(!currentFile.ok&&currentFile.status!==404)throw new Error(`GitHub returned ${currentFile.status}`);const res=await fetch(githubApi,{method:'PUT',headers:{...githubHeaders(),'Content-Type':'application/json'},body:JSON.stringify({message:'Update handwriting word data',content:encodeData(compact),branch:'main',...(existing?.sha?{sha:existing.sha}:{})})});if(!res.ok){const info=await res.json().catch(()=>({}));throw new Error(info.message||`GitHub returned ${res.status}`)}words=compact;saveWords();show(current);githubStatus.textContent=`Saved ${words.length} words and pictures ✓`}catch(error){githubStatus.textContent=error.message}};
-</script>
-<script>
-async function getRepoBranch(){const res=await fetch('https://api.github.com/repos/phuongm1409/trace',{headers:githubHeaders()});if(!res.ok)throw new Error(`Cannot access repository (${res.status}). Check the token and repository access.`);return(await res.json()).default_branch}
-async function saveVerifiedFile(path,content,message,branch){const api=`https://api.github.com/repos/phuongm1409/trace/contents/${path.split('/').map(encodeURIComponent).join('/')}`,lookup=await fetch(api+`?ref=${encodeURIComponent(branch)}`,{headers:githubHeaders()}),old=lookup.ok?await lookup.json():null;if(!lookup.ok&&lookup.status!==404)throw new Error(`Cannot check ${path} (${lookup.status})`);const res=await fetch(api,{method:'PUT',headers:{...githubHeaders(),'Content-Type':'application/json'},body:JSON.stringify({message,content,branch,...(old?.sha?{sha:old.sha}:{})})}),result=await res.json().catch(()=>({}));if(!res.ok)throw new Error(result.message||`Could not upload ${path}`);if(result.content?.path!==path)throw new Error(`GitHub did not confirm ${path}`);return result}
-$('#githubSave').onclick=async()=>{try{if(!githubToken.value.trim())throw new Error('Enter a GitHub token to save');githubStatus.textContent='Checking repository…';const branch=await getRepoBranch(),compact=[],uploaded=[];for(let i=0;i<words.length;i++){const item={...words[i]};if(typeof item.image==='string'&&item.image.startsWith('data:image/')){const name=imageFileName(item.word,i),path=`images/${name}`;githubStatus.textContent=`Uploading ${path}…`;await saveVerifiedFile(path,await pngBase64(item.image),`Update picture for ${item.word}`,branch);item.image=`https://raw.githubusercontent.com/phuongm1409/trace/${encodeURIComponent(branch)}/${path}?v=${Date.now()}`;uploaded.push(path)}compact.push(item)}githubStatus.textContent='Saving data.json…';const dataApi='https://api.github.com/repos/phuongm1409/trace/contents/data.json',lookup=await fetch(dataApi+`?ref=${encodeURIComponent(branch)}`,{headers:githubHeaders()}),old=lookup.ok?await lookup.json():null;if(!lookup.ok&&lookup.status!==404)throw new Error(`Cannot check data.json (${lookup.status})`);await saveVerifiedFile('data.json',encodeData(compact),'Update handwriting word data',branch);words=compact;saveWords();show(current);githubStatus.textContent=uploaded.length?`Saved ${uploaded.join(', ')} and data.json ✓`:'Saved data.json ✓ No new local pictures were found.'}catch(error){githubStatus.textContent=`Save failed: ${error.message}`}};
-</script>
-<script>
-let activeRepoBranch='main';
-const repoImageUrl=word=>`https://raw.githubusercontent.com/phuongm1409/trace/${encodeURIComponent(activeRepoBranch)}/images/${encodeURIComponent((word||'').trim().toLowerCase())}.png`;
-setPicture=function(w){const src=typeof w.image==='string'&&w.image.startsWith('data:image/')?w.image:repoImageUrl(w.word),a=$('#previewImg'),b=$('#rewardImg'),af=$('#previewFallback'),bf=$('#rewardFallback'),fail=()=>{a.hidden=b.hidden=true;af.hidden=bf.hidden=false};a.hidden=b.hidden=false;af.hidden=bf.hidden=true;a.onerror=b.onerror=fail;a.src=b.src=src;a.alt=b.alt=w.word;af.textContent=bf.textContent=w.word[0]||'?'};
-async function autoLoadRepository(){try{const repo=await fetch('https://api.github.com/repos/phuongm1409/trace',{headers:{Accept:'application/vnd.github+json'}});if(repo.ok)activeRepoBranch=(await repo.json()).default_branch||'main';const data=await fetch(`https://raw.githubusercontent.com/phuongm1409/trace/${encodeURIComponent(activeRepoBranch)}/data.json?t=${Date.now()}`,{cache:'no-store'});if(data.ok){const loaded=await data.json();if(Array.isArray(loaded)&&loaded.length){words=loaded.map(w=>({exit:'right',...w}));saveWords()}}show(Math.floor(Math.random()*words.length));githubStatus.textContent=`Automatically loaded from ${activeRepoBranch} ✓`}catch(error){show(current);githubStatus.textContent='Using saved words. Automatic GitHub loading was unavailable.'}}
-// Language-aware repository loading is initialized below.
+const driveStatus=$('#driveStatus');
+sessionStorage.removeItem('traceGithubToken');
+const repoImageUrl=word=>`images/${encodeURIComponent((word||'').trim().toLowerCase())}.png`;
+setPicture=function(w){const src=w.image||repoImageUrl(w.word),a=$('#previewImg'),b=$('#rewardImg'),af=$('#previewFallback'),bf=$('#rewardFallback');a.hidden=b.hidden=false;af.hidden=bf.hidden=true;a.onerror=b.onerror=()=>{a.hidden=b.hidden=true;af.hidden=bf.hidden=false};a.src=b.src=src;a.alt=b.alt=w.word;af.textContent=bf.textContent=w.word[0]||'?'};
 </script>
 <style>
 .language-tabs{display:flex;gap:5px;margin-right:auto;padding:4px;border-radius:15px;background:#ece7f8}.language-tab{border:0;border-radius:11px;padding:7px 13px;background:transparent;color:#6b6088;font-weight:800;cursor:pointer}.language-tab.active{background:#fff;box-shadow:0 2px 0 #c6bce0;color:#4f466c}@media(max-width:560px){.language-tab{padding:7px 9px;font-size:13px}.top{margin-inline:0}}
@@ -164,16 +146,23 @@ async function autoLoadRepository(){try{const repo=await fetch('https://api.gith
 const viDefaults=[['mèo','right'],['cá','left'],['bóng','down'],['xe','right'],['chim','up'],['sao','zoom'],['thuyền','right'],['búp bê','fade']].map(([word,exit])=>({word,exit}));
 let activeLanguage=localStorage.getItem('traceActiveLanguage')||'en';
 const dataFileForLanguage=()=>activeLanguage==='vi'?'data-vi.json':'data.json';
-const languageStorageKey=()=>`traceWordLibrary_${activeLanguage}`;
+const languageStorageKey=()=>`traceWordLibrary_${driveAccount?.id||'guest'}_${activeLanguage}`;
 const saveLanguageWords=()=>localStorage.setItem(languageStorageKey(),JSON.stringify(words));
 const languageTabs=document.createElement('div');languageTabs.className='language-tabs';languageTabs.innerHTML='<button class="language-tab" data-language="en" type="button">English</button><button class="language-tab" data-language="vi" type="button">Tiếng Việt</button>';$('.top').prepend(languageTabs);
-function updateLanguageUI(){document.querySelectorAll('.language-tab').forEach(b=>b.classList.toggle('active',b.dataset.language===activeLanguage));$('#manageBtn').textContent=activeLanguage==='vi'?'⚙️ Hộp từ':'⚙️ Word box';$('.manage h2').textContent=activeLanguage==='vi'?'Hộp từ của tôi':'My word box';$('#clear').textContent=activeLanguage==='vi'?'Xóa':'Clear';$('#next').textContent=activeLanguage==='vi'?'Từ tiếp →':'Next word →';$('.footer').textContent=activeLanguage==='vi'?'Viết chậm và đi theo các chữ mờ. Cố lên!':'Draw slowly and stay on the pale letters. You’ve got this!';$('#githubLoad').textContent=activeLanguage==='vi'?'Tải dữ liệu':'Load data';$('#githubSave').textContent=activeLanguage==='vi'?'Lưu dữ liệu':'Save data'}
-async function loadActiveLanguage(random=true){const fallback=activeLanguage==='vi'?viDefaults:defaults,local=JSON.parse(localStorage.getItem(languageStorageKey())||'null');words=(local||fallback).map(w=>({exit:'right',...w}));try{const branch=await getRepoBranch();activeRepoBranch=branch;const file=dataFileForLanguage(),res=await fetch(`https://raw.githubusercontent.com/phuongm1409/trace/${encodeURIComponent(branch)}/${file}?t=${Date.now()}`,{cache:'no-store'});if(res.ok){const loaded=await res.json();if(Array.isArray(loaded)&&loaded.length){words=loaded.map(w=>({exit:'right',...w}));saveLanguageWords();githubStatus.textContent=`${file} loaded automatically ✓`}}else githubStatus.textContent=`${file} not found — using this device's word box.`}catch(error){githubStatus.textContent='Using this device’s word box.'}updateLanguageUI();show(random?Math.floor(Math.random()*words.length):0)}
+function updateLanguageUI(){document.querySelectorAll('.language-tab').forEach(b=>b.classList.toggle('active',b.dataset.language===activeLanguage));$('#manageBtn').textContent=activeLanguage==='vi'?'⚙️ Hộp từ':'⚙️ Word box';$('.manage h2').textContent=activeLanguage==='vi'?'Hộp từ của tôi':'My word box';$('#clear').textContent=activeLanguage==='vi'?'Xóa':'Clear';$('#next').textContent='›';$('#next').setAttribute('aria-label',activeLanguage==='vi'?'Từ tiếp':'Next word');if($('#previousWord'))$('#previousWord').setAttribute('aria-label',activeLanguage==='vi'?'Từ trước':'Previous word');$('.footer').textContent=activeLanguage==='vi'?'Viết chậm và đi theo các chữ mờ. Cố lên!':'Draw slowly and stay on the pale letters. You’ve got this!';$('#driveLoad').textContent=activeLanguage==='vi'?'Tải từ Drive':'Load from Drive';$('#driveSave').textContent=activeLanguage==='vi'?'Lưu vào Drive':'Save to Drive'}
+let languageLoadVersion=0;
+async function loadActiveLanguage(random=true){
+ const version=++languageLoadVersion,lang=activeLanguage;
+ const local=JSON.parse(localStorage.getItem(languageStorageKey())||'null');
+ words=(local||(lang==='vi'?viDefaults:defaults)).map(w=>({exit:'right',...w}));
+ if(!local)try{const res=await fetch(lang==='vi'?'data-vi.json':'data.json');if(res.ok){const loaded=await res.json();if(version!==languageLoadVersion)return;if(Array.isArray(loaded)&&loaded.length)words=loaded.map(w=>({exit:'right',...w}));}}catch(error){}
+ if(version!==languageLoadVersion)return;
+ updateLanguageUI();show(random?Math.floor(Math.random()*words.length):0);
+}
+
 languageTabs.onclick=e=>{const button=e.target.closest('[data-language]');if(!button||button.dataset.language===activeLanguage)return;saveLanguageWords();activeLanguage=button.dataset.language;localStorage.setItem('traceActiveLanguage',activeLanguage);loadActiveLanguage()};
 window.removeWord=i=>{words.splice(i,1);if(!words.length)words=[...(activeLanguage==='vi'?viDefaults:defaults)];saveLanguageWords();show(Math.min(current,words.length-1))};
 $('#wordForm').onsubmit=e=>{e.preventDefault();const f=$('#newImage').files[0],existing=editIndex>=0?words[editIndex]:null,finish=image=>{const item={word:$('#newWord').value.trim().toLowerCase(),exit:$('#newExit').value,image:image??existing?.image??null};if(editIndex>=0)words[editIndex]=item;else words.push(item);saveLanguageWords();const target=editIndex>=0?editIndex:words.length-1;resetForm();show(target)};if(f){const reader=new FileReader;reader.onload=()=>finish(reader.result);reader.readAsDataURL(f)}else finish(null)};
-$('#githubLoad').onclick=()=>loadActiveLanguage(false);
-$('#githubSave').onclick=async()=>{try{if(!githubToken.value.trim())throw new Error('Enter a GitHub token to save');githubStatus.textContent='Checking repository…';const branch=await getRepoBranch(),compact=[],uploaded=[];for(let i=0;i<words.length;i++){const item={...words[i]};if(typeof item.image==='string'&&item.image.startsWith('data:image/')){const clean=(item.word||`word-${i+1}`).trim().toLowerCase().replace(/[\\/]/g,'-'),path=`images/${clean}.png`;githubStatus.textContent=`Uploading ${path}…`;await saveVerifiedFile(path,await pngBase64(item.image),`Update picture for ${item.word}`,branch);item.image=null;uploaded.push(path)}compact.push(item)}const file=dataFileForLanguage();githubStatus.textContent=`Saving ${file}…`;await saveVerifiedFile(file,encodeData(compact),`Update ${activeLanguage==='vi'?'Vietnamese':'English'} handwriting words`,branch);words=compact;saveLanguageWords();show(current);githubStatus.textContent=`Saved ${file}${uploaded.length?' and '+uploaded.join(', '):''} ✓`}catch(error){githubStatus.textContent=`Save failed: ${error.message}`}};
 loadActiveLanguage();
 </script>
 <nav id="permanentLanguageSwitch" aria-label="Language"><button type="button" data-language="en">English</button><button type="button" data-language="vi">Tiếng Việt</button></nav>
@@ -345,5 +334,147 @@ canvas.onlostpointercapture=event=>{
 document.addEventListener('touchmove',event=>{
   if(event.target===canvas||paper.contains(event.target))event.preventDefault();
 },{passive:false});
+</script>
+<script>
+'use strict';
+const DRIVE_CLIENT_ID='166649873560-112ntue0a495tuakitm7ql4248nvgkv6.apps.googleusercontent.com';
+let driveToken='',driveExpiry=0,driveClient=null,driveFolder=null,driveBusy=false;
+const driveVersions=new Map(),driveImageUrls=new Set();
+function initializeDrive(){
+ driveClient=google.accounts.oauth2.initTokenClient({client_id:DRIVE_CLIENT_ID,scope:'https://www.googleapis.com/auth/drive.file',callback:async response=>{
+  if(response.error){driveStatus.textContent='Google connection failed: '+response.error;return;}
+  driveToken=response.access_token;driveExpiry=Date.now()+Number(response.expires_in)*1000;
+  await driveOperation(async()=>{
+   const previousAccount=driveAccount;saveLanguageWords();driveAccount=null;
+   const about=await driveRequest('/about?fields=user(permissionId,emailAddress,displayName)');
+   const next={id:about.user.permissionId,email:about.user.emailAddress};
+   if(!next.id)throw new Error('Google did not identify this Drive account.');
+   driveAccount=next;
+   if(previousAccount?.id===next.id){driveStatus.textContent='Google Drive connection renewed. Your unsaved changes are kept.';return;}
+   driveFolder=null;driveVersions.clear();clearDriveImages();resetForm();
+   $('#driveAccountLabel').textContent=next.email||about.user.displayName||'Google Drive connected';
+   $('#driveDisconnect').hidden=false;$('#driveConnect').textContent='Switch Google account';
+   // Read both languages so changing tabs uses this account's data only.
+   for(const lang of ['en','vi']){
+    const cached=localStorage.getItem(`traceWordLibrary_${next.id}_${lang}`);
+    const version=JSON.parse(localStorage.getItem(`traceDriveVersion_${next.id}_${lang}`)||'null');
+    if(cached){if(version)driveVersions.set(lang,version);}else await readDriveWords(lang,false);
+   }
+   await loadActiveLanguage(false);
+   driveStatus.textContent='Connected. Device drafts are kept. Load from Drive for the latest saved version; Save to Drive to sync changes.';
+  });
+ },error_callback:error=>{driveStatus.textContent=error.type==='popup_closed'?'Connection cancelled.':'Google popup could not open. Allow popups and try again.';}});
+}
+function clearDriveImages(){for(const url of driveImageUrls)URL.revokeObjectURL(url);driveImageUrls.clear();}
+function requireDrive(){if(!driveAccount||!driveToken||Date.now()>driveExpiry-30000)throw new Error('Please click Connect Google Drive to reconnect. Your local changes are kept.');}
+async function driveRequest(path,options={},upload=false){
+ if(!driveToken)throw new Error('Connect Google Drive first.');
+ const res=await fetch((upload?'https://www.googleapis.com/upload/drive/v3':'https://www.googleapis.com/drive/v3')+path,{...options,headers:{Authorization:'Bearer '+driveToken,...options.headers}});
+ if(!res.ok){const info=await res.json().catch(()=>({}));if(res.status===401){driveToken='';throw new Error('Google connection expired. Reconnect to continue.');}throw new Error(info.error?.message||'Drive request failed ('+res.status+').');}
+ if(options.blob)return res.blob();
+ return res.status===204?null:res.json();
+}
+async function driveList(q){let files=[],page='';do{const result=await driveRequest('/files?'+new URLSearchParams({q,fields:'nextPageToken,files(id,name,modifiedTime)',pageSize:'100',...(page?{pageToken:page}:{})}));files.push(...result.files);page=result.nextPageToken;}while(page);return files;}
+async function getDriveFolder(create=false){
+ if(driveFolder)return driveFolder;
+ const found=await driveList("trashed = false and mimeType = 'application/vnd.google-apps.folder' and appProperties has { key='traceApp' and value='word-box-v1' }");
+ if(found.length)driveFolder=found[0].id;
+ else if(create){const folder=await driveRequest('/files?fields=id',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'Trace — My Word Boxes',mimeType:'application/vnd.google-apps.folder',appProperties:{traceApp:'word-box-v1'}})});driveFolder=folder.id;}
+ return driveFolder;
+}
+function validateDriveWords(data){
+ if(!Array.isArray(data)||!data.length||data.length>1000)throw new Error('Invalid saved word box.');
+ return data.map(item=>{
+  if(!item||typeof item.word!=='string'||!item.word.trim()||item.word.length>64)throw new Error('Invalid word in saved data.');
+  const exit=['right','left','up','down','fade','shrink','zoom','spin','drop'].includes(item.exit)?item.exit:'right';
+  const image=typeof item.image==='string'&&(/^(data:image\/(png|jpeg|webp);base64,|https:\/\/raw\.githubusercontent\.com\/phuongm1409\/trace\/|images\/)/).test(item.image)?item.image:null;
+  return {word:item.word,exit,image,...(typeof item.driveImageId==='string'&&/^[\w-]+$/.test(item.driveImageId)?{driveImageId:item.driveImageId}:{})};
+ });
+}
+async function readDriveWords(lang,replace=true){
+ const folder=await getDriveFolder();if(!folder)return false;
+ const name=lang==='vi'?'data-vi.json':'data.json';
+ const matches=await driveList(`trashed = false and '${folder}' in parents and name = '${name}'`);
+ if(matches.length>1)throw new Error('Multiple '+name+' files found in your Trace folder. Keep one before loading.');
+ if(!matches.length)return false;
+ const file=matches[0],data=validateDriveWords(await driveRequest('/files/'+file.id+'?alt=media'));
+ // Cache actual image data privately; never use public Drive download URLs.
+ for(const item of data)if(item.driveImageId){const blob=await driveRequest('/files/'+item.driveImageId+'?alt=media',{blob:true});if(!['image/png','image/jpeg','image/webp'].includes(blob.type))throw new Error('Invalid picture type in Drive.');item.image=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('Could not read picture'));reader.readAsDataURL(blob);});}
+ for(const item of data)if(item.driveImageId)item.savedDriveImage=item.image;
+ localStorage.setItem(`traceWordLibrary_${driveAccount.id}_${lang}`,JSON.stringify(data));driveVersions.set(lang,file);localStorage.setItem(`traceDriveVersion_${driveAccount.id}_${lang}`,JSON.stringify(file));
+ if(replace&&lang===activeLanguage){words=data;resetForm();show(0);}
+ return true;
+}
+async function driveUpload(metadata,blob,id){
+ const boundary='trace_'+crypto.randomUUID();
+ const body=new Blob(['--'+boundary+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n',JSON.stringify(metadata),'\r\n--'+boundary+'\r\nContent-Type: '+(blob.type||'application/octet-stream')+'\r\n\r\n',blob,'\r\n--'+boundary+'--\r\n']);
+ return driveRequest('/files'+(id?'/'+id:'')+'?uploadType=multipart&fields=id,name,modifiedTime',{method:id?'PATCH':'POST',headers:{'Content-Type':'multipart/related; boundary='+boundary},body},true);
+}
+async function saveToDrive(){
+ requireDrive();const lang=activeLanguage,snapshot=validateDriveWords(JSON.parse(JSON.stringify(words))),folder=await getDriveFolder(true),name=lang==='vi'?'data-vi.json':'data.json';
+ const matches=await driveList(`trashed = false and '${folder}' in parents and name = '${name}'`),known=driveVersions.get(lang);
+ if(matches.length>1)throw new Error('Multiple saved word boxes found. Load after keeping only one '+name+'.');
+ const existing=matches[0];
+ if(existing&&(!known||existing.id!==known.id||existing.modifiedTime!==known.modifiedTime))throw new Error('This word box changed in Drive. Load the latest version before saving. Your device copy is kept.');
+ for(let i=0;i<snapshot.length;i++){
+  const item=snapshot[i];
+  if(item.image?.startsWith('data:image/')){
+   const old=words[i];
+   // New/replaced pictures get a new file so a failed save cannot alter the previous word box.
+   if(!old.driveImageId||old.image!==old.savedDriveImage){
+    driveStatus.textContent=`Saving picture ${i+1} of ${snapshot.length}…`;
+    const blob=await(await fetch(item.image)).blob();
+    const file=await driveUpload({name:item.word+'-'+crypto.randomUUID()+'.'+(blob.type==='image/png'?'png':blob.type==='image/jpeg'?'jpg':'webp'),parents:[folder]},blob);
+    item.driveImageId=file.id;
+   }
+   item.image=null;
+  }
+ }
+ const metadata={name,...(!existing?{parents:[folder]}:{})};
+ const file=await driveUpload(metadata,new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'}),existing?.id);
+ driveVersions.set(lang,file);localStorage.setItem(`traceDriveVersion_${driveAccount.id}_${lang}`,JSON.stringify(file));
+ // Keep the local image content for immediate display and for an offline device copy.
+ words=words.map((item,i)=>({...item,driveImageId:snapshot[i].driveImageId,savedDriveImage:item.image}));saveLanguageWords();
+ driveStatus.textContent='Saved '+words.length+' words and their pictures to your Google Drive ✓';
+}
+async function driveOperation(action){
+ if(driveBusy)return;driveBusy=true;
+ const controls=[...document.querySelectorAll('#manager button,#manager input,#manager select,#permanentLanguageSwitch button,#googleAccountButton')];
+ const states=controls.map(control=>control.disabled);controls.forEach(control=>control.disabled=true);
+ try{await action();}catch(error){driveStatus.textContent=error.message;}
+ finally{controls.forEach((control,i)=>control.disabled=states[i]);driveBusy=false;$('#driveLoad').disabled=$('#driveSave').disabled=!driveAccount;updateGoogleAccountButton();}
+}
+$('#driveConnect').onclick=()=>{if(!driveClient){driveStatus.textContent='Google sign-in is still loading. Check your connection and try again.';return;}driveClient.requestAccessToken({prompt:'select_account'});};
+$('#driveSave').onclick=()=>driveOperation(saveToDrive);
+$('#driveLoad').onclick=()=>{if(!confirm('Load the saved Drive word box? This replaces unsaved changes in the current language.'))return;driveOperation(async()=>{requireDrive();driveStatus.textContent=await readDriveWords(activeLanguage)?'Loaded your word box from Google Drive ✓':'No saved word box yet. Add words and click Save to Drive.';});};
+$('#driveDisconnect').onclick=()=>driveOperation(async()=>{
+ saveLanguageWords();driveToken='';driveExpiry=0;driveAccount=null;driveFolder=null;driveVersions.clear();clearDriveImages();resetForm();
+ $('#driveAccountLabel').textContent='';$('#driveDisconnect').hidden=true;$('#driveConnect').textContent='Sign in with Google';
+ await loadActiveLanguage(false);driveStatus.textContent='Disconnected. Your Drive files are kept.';
+});
+
+</script>
+<script src="https://accounts.google.com/gsi/client" async onload="initializeDrive()"></script>
+<style>
+.tracing-row{display:grid;grid-template-columns:42px minmax(0,1fr) 42px;gap:10px;align-items:center}
+.word-arrow{width:42px;height:58px;padding:0;border:0;border-radius:18px;background:#e4ddf6;color:#68568f;box-shadow:0 4px 0 #c2b7df;font:800 40px/1 system-ui,sans-serif;cursor:pointer;touch-action:manipulation}
+.word-arrow:active{transform:translateY(2px);box-shadow:0 2px 0 #c2b7df}.word-arrow:focus-visible{outline:3px solid #587fd6;outline-offset:3px}
+.tools .done-check{flex:0 0 68px;width:68px;height:48px}.top{gap:10px;align-items:center}
+.google-account-btn{padding:8px 12px;font-size:13px;background:#e1f2e7;box-shadow:0 3px 0 #abc9b4}
+@media(max-width:560px){.tracing-row{grid-template-columns:30px minmax(0,1fr) 30px;gap:5px}.word-arrow{width:30px;height:50px;border-radius:12px;font-size:32px}.top{gap:7px}.google-account-btn{font-size:11px;padding:8px}.tools{gap:9px}.tool{width:52px;height:52px}.color{width:34px;height:34px}}
+</style>
+<script>
+// Keep the completion control beside Clear; navigate at either side of the paper.
+const nextWordButton=$('#next');nextWordButton.replaceWith(doneCheck);
+nextWordButton.className='word-arrow';nextWordButton.textContent='›';nextWordButton.title='Next word';nextWordButton.setAttribute('aria-label','Next word');
+const previousWordButton=document.createElement('button');previousWordButton.id='previousWord';previousWordButton.type='button';previousWordButton.className='word-arrow';previousWordButton.textContent='‹';previousWordButton.title='Previous word';previousWordButton.setAttribute('aria-label','Previous word');
+previousWordButton.onclick=()=>{if(!done)show(current-1)};
+nextWordButton.onclick=()=>{if(!done)show(current+1)};
+const tracingRow=document.createElement('div');tracingRow.className='tracing-row';paper.before(tracingRow);tracingRow.append(previousWordButton,paper,nextWordButton);
+const googleAccountButton=document.createElement('button');googleAccountButton.id='googleAccountButton';googleAccountButton.type='button';googleAccountButton.className='btn google-account-btn';
+$('.top').prepend(googleAccountButton);
+function updateGoogleAccountButton(){googleAccountButton.textContent=driveAccount?'Sign out':'Sign in with Google';googleAccountButton.title=driveAccount?'Sign out of Trace ('+(driveAccount.email||'Google account')+')':'Connect your Google Drive';googleAccountButton.setAttribute('aria-label',googleAccountButton.title);}
+googleAccountButton.onclick=()=>driveAccount?$('#driveDisconnect').click():$('#driveConnect').click();
+updateGoogleAccountButton();updateLanguageUI();resize();
 </script>
 </body></html>
